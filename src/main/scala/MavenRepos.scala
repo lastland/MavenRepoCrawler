@@ -2,6 +2,9 @@
  * Created by lastland on 15/6/8.
  */
 
+import org.jsoup.HttpStatusException
+
+import scala.annotation.tailrec
 import scala.io.Source
 import scala.xml.{XML, Elem}
 import net.ruippeixotog.scalascraper.browser.Browser
@@ -65,19 +68,66 @@ class MavenRepos extends AnyRepos {
 
   private lazy val browser = new Browser
 
-  private def reposOfPage(pageNum: Int): Stream[AnyRepo] = {
-    if (pageNum > 20)
-      Stream.empty
-    else {
-      val page = browser.get(link + s"/popular?p=$pageNum")
-      val links = for {
-        oa <- (page >> elements("div.im")).map(_ >?> element("a"))
-        ra <- oa
-      } yield link + ra.attr("href")
-      links.map(new MavenRepo(_)).toStream #::: reposOfPage(pageNum + 1)
+  private def reposOfPage(pageLink: String, pageNum: Int): Stream[AnyRepo] = {
+    try {
+      val page = browser.get(pageLink + s"?p=$pageNum")
+      val content = page >?> element("div#maincontent")
+      content match {
+        case Some(c) =>
+          val links = for {
+            oa <- (c >> elements("div.im")).map(_ >?> element("a"))
+            ra <- oa
+          } yield link + ra.attr("href")
+          if (!links.isEmpty) {
+            links.map(new MavenRepo(_)).toStream #::: reposOfPage(pageLink, pageNum + 1)
+          } else {
+            Stream.empty
+          }
+        case None =>
+          Stream.empty
+      }
+    } catch {
+      case statusException: HttpStatusException =>
+        Stream.empty
     }
   }
 
-  override def repos: Stream[AnyRepo] = reposOfPage(1)
+  def reposOfPopular: Stream[AnyRepo] = {
+    reposOfPage(link + "/popular", 1)
+  }
+
+  private def reposOfTags(tags: Seq[String]): Stream[AnyRepo] = {
+    if (tags.isEmpty) {
+      Stream.empty
+    } else {
+      val tag = tags.head
+      reposOfPage(link + "/tags/" + tag, 1) #::: reposOfTags(tags.tail)
+    }
+  }
+
+  def reposOfTags: Stream[AnyRepo] = {
+    val page = browser.get(link + "/tags")
+    val tags = (page >> element("div#maincontent") >> elements("a")).map(_ >> text("a"))
+    reposOfTags(tags)
+  }
+
+  private def reposOfCategories(categories: Seq[String]): Stream[AnyRepo] = {
+    if (categories.isEmpty) {
+      Stream.empty
+    } else {
+      val cat = categories.head
+      reposOfPage(link + "/open-source/" + cat, 1) #::: reposOfCategories(categories.tail)
+    }
+  }
+
+  def reposOfCategories: Stream[AnyRepo] = {
+    val page = browser.get(link + "/open-source")
+    val categories = (page >> element("div#maincontent") >> elements("a")).map(
+      _.attr("href")).filter(_.startsWith("/open-source"))
+    reposOfCategories(categories)
+  }
+
+  // This function does not guarantee that all repos returned are unique
+  override def repos: Stream[AnyRepo] = reposOfPopular #::: reposOfTags #::: reposOfCategories
 
 }
