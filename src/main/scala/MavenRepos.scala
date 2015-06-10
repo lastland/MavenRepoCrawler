@@ -12,12 +12,6 @@ import net.ruippeixotog.scalascraper.dsl.DSL._
 import net.ruippeixotog.scalascraper.dsl.DSL.Extract._
 import net.ruippeixotog.scalascraper.dsl.DSL.Parse._
 
-case class MavenRepoInfo(groupId: String, artifactId: String, version: String) {
-  override def hashCode =
-    (List(groupId.replace(".", "/"), artifactId, version).mkString("/") + "/").hashCode
-
-  override def toString = List(groupId, artifactId, version).mkString(" ")
-}
 
 class MavenRepo(override val link: String) extends AnyRepo(link) {
   private val domain = "http://search.maven.org/"
@@ -41,7 +35,7 @@ class MavenRepo(override val link: String) extends AnyRepo(link) {
     XML.loadString(pom)
   }
 
-  protected def findVersions: Seq[MavenRepoInfo] = {
+  override def findVersions: Seq[RepoInfo] = {
     val repoPage = browser.get(link)
     val title: Seq[String] = (repoPage >> elements("p.im-subtitle") >> elements("a")).map(e =>
       e >> text("a")).toList
@@ -54,13 +48,13 @@ class MavenRepo(override val link: String) extends AnyRepo(link) {
           olink <- links
           link <- olink
           l <- (link >?> text("a"))
-        } yield MavenRepoInfo(title(0), title(1), l)
+        } yield RepoInfo(title(0), title(1), l)
       case None =>
         Seq()
     }
   }
 
-  protected def findLatestVersion: MavenRepoInfo = findVersions(0)
+  override def findLatestVersion: RepoInfo = findVersions(0)
 }
 
 class MavenRepos extends AnyRepos {
