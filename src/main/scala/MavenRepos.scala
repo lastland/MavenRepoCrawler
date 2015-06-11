@@ -109,20 +109,28 @@ class MavenRepos extends AnyRepos {
     reposOfTags(tags)
   }
 
-  private def reposOfCategories(categories: Seq[String]): Stream[AnyRepo] = {
+  private def reposOfCategory(categories: Seq[String]): Stream[AnyRepo] = {
     if (categories.isEmpty) {
       Stream.empty
     } else {
       val cat = categories.head
-      reposOfPage(link + "/open-source/" + cat, 1) #::: reposOfCategories(categories.tail)
+      reposOfPage(link + cat, 1) #::: reposOfCategory(categories.tail)
+    }
+  }
+
+  def reposOfCategoryPages(pageNum: Int): Stream[AnyRepo] = {
+    val page = browser.get(link + "/open-source?p=" + pageNum)
+    val categories = (page >> element("div#maincontent") >> elements("a")).map(
+      _.attr("href")).filter(_.startsWith("/open-source/")).distinct
+    if (categories.isEmpty) {
+      Stream.empty
+    } else {
+      reposOfCategory(categories) #::: reposOfCategoryPages(pageNum + 1)
     }
   }
 
   def reposOfCategories: Stream[AnyRepo] = {
-    val page = browser.get(link + "/open-source")
-    val categories = (page >> element("div#maincontent") >> elements("a")).map(
-      _.attr("href")).filter(_.startsWith("/open-source"))
-    reposOfCategories(categories)
+    reposOfCategoryPages(1)
   }
 
   // This function does not guarantee that all repos returned are unique
