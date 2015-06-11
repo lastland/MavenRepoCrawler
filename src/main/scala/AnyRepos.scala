@@ -3,7 +3,9 @@
  */
 import scala.xml.Elem
 
-case class RepoInfo(groupId: String, artifactId: String, version: String) {
+case class RepoInfo(groupId: String, artifactId: String)
+
+case class RepoInfoVersion(groupId: String, artifactId: String, version: String) {
   override def hashCode =
     (List(groupId.replace(".", "/"), artifactId, version).mkString("/") + "/").hashCode
 
@@ -11,9 +13,10 @@ case class RepoInfo(groupId: String, artifactId: String, version: String) {
 }
 
 abstract class AnyRepo(val link: String) {
-  def buildDef: Elem
-  def findVersions: Seq[RepoInfo]
-  def findLatestVersion: RepoInfo
+  def repoInfo: RepoInfo
+  def buildDef(repo: RepoInfoVersion): Elem
+  def findVersions: Seq[RepoInfoVersion]
+  def findLatestVersion: RepoInfoVersion
 }
 
 abstract class AnyRepos {

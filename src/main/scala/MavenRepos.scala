@@ -21,8 +21,14 @@ class MavenRepo(override val link: String) extends AnyRepo(link) {
     "MavenRepo at " + link
   }
 
-  override def buildDef: Elem = {
-    val repo = findLatestVersion
+  override lazy val repoInfo: RepoInfo = {
+    val repoPage = browser.get(link)
+    val title: Seq[String] = (repoPage >> elements("p.im-subtitle") >> elements("a")).map(e =>
+      e >> text("a")).toList
+    RepoInfo(title(0), title(1))
+  }
+
+  override def buildDef(repo: RepoInfoVersion): Elem = {
     val repoInfo = "http://search.maven.org/solrsearch/select?q=parentId:\"" + repo.hashCode +
       """" AND type:1&rows=100000&core=filelisting&wt=xml"""
     val page = browser.get(repoInfo)
@@ -35,10 +41,8 @@ class MavenRepo(override val link: String) extends AnyRepo(link) {
     XML.loadString(pom)
   }
 
-  override def findVersions: Seq[RepoInfo] = {
+  override def findVersions: Seq[RepoInfoVersion] = {
     val repoPage = browser.get(link)
-    val title: Seq[String] = (repoPage >> elements("p.im-subtitle") >> elements("a")).map(e =>
-      e >> text("a")).toList
     val versionTable = repoPage >?> element("table")
     versionTable match {
       case Some(table) =>
@@ -48,13 +52,13 @@ class MavenRepo(override val link: String) extends AnyRepo(link) {
           olink <- links
           link <- olink
           l <- (link >?> text("a"))
-        } yield RepoInfo(title(0), title(1), l)
+        } yield RepoInfoVersion(repoInfo.groupId, repoInfo.artifactId, l)
       case None =>
         Seq()
     }
   }
 
-  override def findLatestVersion: RepoInfo = findVersions(0)
+  override def findLatestVersion: RepoInfoVersion = findVersions(0)
 }
 
 class MavenRepos extends AnyRepos {
