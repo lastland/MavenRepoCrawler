@@ -12,6 +12,12 @@ import net.ruippeixotog.scalascraper.dsl.DSL._
 import net.ruippeixotog.scalascraper.dsl.DSL.Extract._
 import net.ruippeixotog.scalascraper.dsl.DSL.Parse._
 
+object MavenRepo {
+  def fromRepoInfo(repo: RepoInfo): MavenRepo = {
+    val link = s"http://mvnrepository.com/artifact/${repo.groupId}/${repo.artifactId}"
+    new MavenRepo(link)
+  }
+}
 
 class MavenRepo(override val link: String) extends AnyRepo(link) {
   private val domain = "http://search.maven.org/"
@@ -28,7 +34,7 @@ class MavenRepo(override val link: String) extends AnyRepo(link) {
     RepoInfo(title(0), title(1))
   }
 
-  override def buildDef(repo: RepoInfoVersion): Elem = {
+  override def buildDef(repo: RepoInfoVersion): String = {
     val repoInfo = "http://search.maven.org/solrsearch/select?q=parentId:\"" + repo.hashCode +
       """" AND type:1&rows=100000&core=filelisting&wt=xml"""
     val page = browser.get(repoInfo)
@@ -37,8 +43,7 @@ class MavenRepo(override val link: String) extends AnyRepo(link) {
       _.endsWith(".pom")).filter(_.contains("/"))
     val source = Source.fromURL("https://repo1.maven.org/maven2/" + poms(0))
     val xml = source.mkString
-    val pom = xml.substring(xml.indexOf("\n")+1, xml.length)
-    XML.loadString(pom)
+    xml
   }
 
   override def findVersions: Seq[RepoInfoVersion] = {
@@ -118,7 +123,7 @@ class MavenRepos extends AnyRepos {
     }
   }
 
-  def reposOfCategoryPages(pageNum: Int): Stream[AnyRepo] = {
+  private def reposOfCategoryPages(pageNum: Int): Stream[AnyRepo] = {
     val page = browser.get(link + "/open-source?p=" + pageNum)
     val categories = (page >> element("div#maincontent") >> elements("a")).map(
       _.attr("href")).filter(_.startsWith("/open-source/")).distinct
@@ -131,6 +136,11 @@ class MavenRepos extends AnyRepos {
 
   def reposOfCategories: Stream[AnyRepo] = {
     reposOfCategoryPages(1)
+  }
+
+  def reposOfUsages(repo: RepoInfo): Stream[AnyRepo] = {
+    val usageLink = link + s"/artifact/${repo.groupId}/${repo.artifactId}/usages"
+    reposOfPage(usageLink, 1)
   }
 
   // This function does not guarantee that all repos returned are unique

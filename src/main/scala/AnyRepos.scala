@@ -14,7 +14,7 @@ case class RepoInfoVersion(groupId: String, artifactId: String, version: String)
 
 abstract class AnyRepo(val link: String) {
   def repoInfo: RepoInfo
-  def buildDef(repo: RepoInfoVersion): Elem
+  def buildDef(repo: RepoInfoVersion): String
   def findVersions: Seq[RepoInfoVersion]
   def findLatestVersion: RepoInfoVersion
 }
